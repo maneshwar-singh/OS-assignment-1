@@ -3,12 +3,18 @@
 #include<sys/wait.h>
 #include<stdio.h>
 #include<stdlib.h>
+
+void error_and_die(const char *msg) {
+  perror(msg);
+  exit(EXIT_FAILURE);
+}
+
 int main()
 {
 	pid_t pid;
 
 	if ((pid = fork()) < 0) {
-		printf("Cannot fork new process");
+		error_and_die("Cannot fork new process");
 	} else if (!pid) {
 		printf("Child process, pid: %d\n", getpid());
 		exit(0);
