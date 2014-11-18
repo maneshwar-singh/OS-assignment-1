@@ -7,6 +7,8 @@
 #include <sys/wait.h>
 #include <error.h>
 
+#define MAX_MEMORY  49152
+
 void error_and_die(const char *msg) {
   perror(msg);
   exit(EXIT_FAILURE);
@@ -22,24 +24,24 @@ int main() {
   if (fd == -1)
     error_and_die("shm_open");
 
-  r = ftruncate(fd, 4096*12);
+  r = ftruncate(fd, MAX_MEMORY);
   if (r != 0)
     error_and_die("ftruncate");
 
-  void *ptr = mmap(0, 4096*12, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  void *ptr = mmap(0, MAX_MEMORY, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   if (ptr == MAP_FAILED)
   error_and_die("mmap");
   close(fd);
   pid_t pid = fork();
 
   if (pid == 0) {
-    strcpy(ptr,"string");
+    strcpy(ptr,"Hello World!");
     exit(0);
   }
   else {
     int status;
     waitpid(pid, &status, 0);
-    printf("child wrote %s\n", (char *) ptr);
+    printf("Child Wrote: %s\n", (char *) ptr);
   }
 
   r = munmap(ptr, region_size);
