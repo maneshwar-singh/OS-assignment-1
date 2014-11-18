@@ -1,76 +1,67 @@
 #include <stdio.h>
-#include <fcntl.h>
-#include <mqueue.h>
-#include <unistd.h>
-#include <string.h>
 #include <stdlib.h>
-int main(int argc, char *argv[])
-{
-    mqd_t mq;               // message queue
-    struct mq_attr ma;      // message queue attributes
-    int status = 0;
-    int a = 5;
-    int b = 0;
-    char *c="str";
-	char *buffer;
-	struct mq_attr attr;
-    printf("a = %d, b = %d\n", a, b);
+#include <string.h>
+#include <errno.h>
+#include <mqueue.h>
 
-    // Specify message queue attributes.
-    ma.mq_flags = 0;                // blocking read/write
-    ma.mq_maxmsg = 60;              // maximum number of messages allowed in que                                                                                        ue
-    ma.mq_msgsize = 120;    // messages are contents of an int
-    ma.mq_curmsgs = 0;              // number of messages currently in queue
+#define MQNAME "/pax"
+#define MQMESG "Hello there!"
 
-    // Create the message queue with some default settings.
-    mq = mq_open("/test_queue", O_RDWR | O_CREAT|O_EXCL, 0700, &ma);
-    int x = fork();
-    // -1 indicates an error.
-    if (mq == -1)
-    {
-        printf("Failed to create queue.\n");
-        status = 1;
+int main (void) {
+	int rc;
+	mqd_t svrHndl;
+    struct mq_attr mqAttr;
+
+    printf ("Bringing up server.\n");
+    rc = mq_unlink (MQNAME);
+    if (rc < 0) {
+        printf ("   Warning %d (%s) on server mq_unlink.\n",
+            errno, strerror (errno));
     }
 
-    if (x==0 && status == 0)
-    {
-	mq_unlink("/test_queue");
-	mq = mq_open("/test_queue", O_RDWR | O_CREAT|O_EXCL, 0700, &ma);
-        char *sendmsg = "Hello World";
-        printf("child code \n");
-        //a++;
-	size_t s1 = strlen(sendmsg);
-       printf("-----%d\n",s1);
-// mq.mq_msgsize = s1;
- status = mq_send(mq, (char *)sendmsg, s1, 1);
-        printf("child finished%d\n",status);
+    mqAttr.mq_maxmsg = 10;
+    mqAttr.mq_msgsize = 1024;
+    svrHndl = mq_open (MQNAME, O_RDWR|O_CREAT, S_IWUSR|S_IRUSR, &mqAttr);
+    if (svrHndl < 0) {
+        printf ("   Error %d (%s) on server mq_open.\n",
+            errno, strerror (errno));
+        exit (1);
+    }
+    printf ("   Server opened mqd_t of %d.\n", svrHndl);
+
+	int pid=fork();
+if(pid==0){
+mqd_t cliHndl;
+    printf ("Client sending.\n");
+    cliHndl = mq_open (MQNAME, O_RDWR);
+    if (cliHndl < 0) {
+        printf ("   Error %d (%s) on client mq_open.\n",
+            errno, strerror (errno));
+        exit (1);
+    }
+    printf ("   Client opened mqd_t of %d.\n", cliHndl);
+
+    rc = mq_send (cliHndl, MQMESG, sizeof (MQMESG), 1);
+    if (rc < 0) {
+        printf ("   Error %d (%s) on client mq_send.\n",
+            errno, strerror (errno));
+        exit (1);
     }
 
-    if (x>0 && status == 0)
-    {
-        printf("sdfs");
-        // buffer = malloc(attr.mq_msgsize);
-		//if (buffer == NULL)
-		//errExit("malloc");
-	char rec[11];
-        printf("parent code");
-        status = mq_receive(mq, (char *) &rec,11, NULL);
-
-        sleep(3);
-    if ((status == 0) && (mq_close(mq) == -1))
-    {
-        printf("Error closing message queue.\n");
-        status = 1;
-    }
-
-    if ((status == 0) && (mq_unlink("test_queue") == -1))
-    {
-        printf("Error deleting message queue.\n");
-        status = 1;
-    }
-
-    printf("a = %d, b = %d, c=%s\n", a, b,rec);
+    mq_close (cliHndl);
 }
-    return status;
+else{
+    char buffer[2048];
+    printf ("Server receiving on mqd_t %d.\n", svrHndl);
+    rc = mq_receive (svrHndl, buffer, sizeof (buffer), NULL);
+    if (rc < 0) {
+        printf ("   Error %d (%s) on server mq_receive.\n",
+            errno, strerror (errno));
+        exit (1);
+    }
+    printf ("   Received [%s].\n", buffer);
+    
+mq_close (svrHndl);
 }
-
+    return 0;
+}
